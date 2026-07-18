@@ -1,0 +1,107 @@
+name: Security Scan
+
+# Reporting-only security telemetry pipeline: Semgrep + Trivy (static) and a
+# Nuclei placeholder (dynamic). This workflow must never modify repository
+# files, and must never fail the build based on findings — see continue-on-error
+# below on every scan/upload step.
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  static-analysis:
+    name: Static Analysis (Semgrep + Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run Semgrep (Java/Maven rulesets)
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            semgrep/semgrep@sha256:a05b03c49b2161f9a081aa597931a051ce09cb247ae087e35d19759a2070d55c \
+            semgrep scan \
+              --config=p/java \
+              --config=p/maven \
+              --sarif \
+              --output=semgrep.sarif \
+              --no-git-ignore \
+              .
+
+      - name: Run Trivy filesystem scan (pom.xml + source)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        continue-on-error: true
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: '0'
+
+      - name: Upload Semgrep SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@b7351df727350dca84cb9d725d57dcf5bc82ba26 # v3.37.1
+        continue-on-error: true
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Upload Trivy SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@b7351df727350dca84cb9d725d57dcf5bc82ba26 # v3.37.1
+        continue-on-error: true
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+  dynamic-scan:
+    name: Dynamic Scan Placeholder (Nuclei)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      # Dynamic scanning needs a live WebGoat instance. Building/booting the
+      # full server on every push/PR is expensive and out of scope for a
+      # reporting-only pipeline, so the startup step stays commented out.
+      # Uncomment (and give the job enough time to wait for readiness) to
+      # exercise this locally or in a dedicated, manually-triggered workflow.
+      # - name: Start WebGoat server
+      #   run: |
+      #     docker run -d --name webgoat -p 8080:8080 -p 9090:9090 \
+      #       webgoat/webgoat
+      #     for i in $(seq 1 30); do
+      #       curl -sf http://localhost:8080/WebGoat/login && break
+      #       sleep 5
+      #     done
+
+      - name: Run Nuclei against local WebGoat instance
+        continue-on-error: true
+        run: |
+          mkdir -p nuclei-results
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/nuclei-results:/output" \
+            projectdiscovery/nuclei@sha256:8b82dfd56c02cbc47a6d328c58ff3292bfdb633e964f0f119b6d41d3a5ee33ef \
+            -target http://localhost:8080/WebGoat \
+            -jsonl \
+            -output /output/nuclei-results.json
+
+      - name: Upload Nuclei results artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: nuclei-results
+          path: nuclei-results/nuclei-results.json
+          if-no-files-found: warn
