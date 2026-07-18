@@ -2,9 +2,11 @@ name: Security Scan
 
 # Reporting-only security telemetry pipeline: Semgrep + Trivy (static) and
 # Nuclei (dynamic, against a WebGoat instance built and booted from this
-# checkout). This workflow must never modify repository files, and must
-# never fail the build based on findings — see continue-on-error below on
-# every build/boot/scan/upload step.
+# checkout), followed by a PR comment summarizing findings by CWE and
+# GitHub Issues filed for Critical-severity findings. This workflow must
+# never modify repository files, and must never fail the build based on
+# findings — see continue-on-error below on every build/boot/scan/report
+# step.
 
 on:
   pull_request:
@@ -133,3 +135,33 @@ jobs:
           name: nuclei-results
           path: nuclei-results/nuclei-results.json
           if-no-files-found: warn
+
+  report-findings:
+    name: Report Findings (PR comment + Critical issues)
+    # PR-only: the report is built around commenting on a specific PR, so it
+    # doesn't run for direct pushes to main/master. always() so a hard
+    # failure in either upstream job still gets a partial report instead of
+    # silently skipping it.
+    if: always() && github.event_name == 'pull_request'
+    needs: [static-analysis, dynamic-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Wait for code scanning analysis to be queryable
+        run: sleep 15
+
+      - name: Post PR comment and file issues for Critical findings
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/report_findings.py

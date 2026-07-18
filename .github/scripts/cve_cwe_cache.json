@@ -1,0 +1,263 @@
+{
+  "CVE-2013-7285": {
+    "cwes": [
+      "CWE-78"
+    ],
+    "severity": "CRITICAL"
+  },
+  "CVE-2016-3674": {
+    "cwes": [
+      "CWE-200"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2017-7957": {
+    "cwes": [
+      "CWE-20"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2020-26217": {
+    "cwes": [
+      "CWE-78"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2020-26258": {
+    "cwes": [
+      "CWE-918"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2020-26259": {
+    "cwes": [
+      "CWE-78"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21341": {
+    "cwes": [
+      "CWE-400",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-21342": {
+    "cwes": [
+      "CWE-502",
+      "CWE-918"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21343": {
+    "cwes": [
+      "CWE-502",
+      "CWE-73"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21344": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21345": {
+    "cwes": [
+      "CWE-502",
+      "CWE-78",
+      "CWE-94"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21346": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21347": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21348": {
+    "cwes": [
+      "CWE-400",
+      "CWE-502"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21349": {
+    "cwes": [
+      "CWE-502",
+      "CWE-918"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21350": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-21351": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-29505": {
+    "cwes": [
+      "CWE-502",
+      "CWE-94"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39139": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39140": {
+    "cwes": [
+      "CWE-502",
+      "CWE-835"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2021-39141": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39144": {
+    "cwes": [
+      "CWE-306",
+      "CWE-502",
+      "CWE-94"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39145": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39146": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39147": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39148": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39149": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39150": {
+    "cwes": [
+      "CWE-502",
+      "CWE-918"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39151": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39152": {
+    "cwes": [
+      "CWE-502",
+      "CWE-918"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39153": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-39154": {
+    "cwes": [
+      "CWE-434",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2021-43859": {
+    "cwes": [
+      "CWE-400"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2022-40151": {
+    "cwes": [
+      "CWE-121",
+      "CWE-787"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2022-41966": {
+    "cwes": [
+      "CWE-120",
+      "CWE-121",
+      "CWE-502",
+      "CWE-674"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2024-47072": {
+    "cwes": [
+      "CWE-121",
+      "CWE-502"
+    ],
+    "severity": "HIGH"
+  },
+  "CVE-2026-54515": {
+    "cwes": [
+      "CWE-915"
+    ],
+    "severity": "MEDIUM"
+  },
+  "CVE-2025-48924": {
+    "cwes": [
+      "CWE-674"
+    ],
+    "severity": "MEDIUM"
+  }
+}
