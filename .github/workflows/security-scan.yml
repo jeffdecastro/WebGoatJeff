@@ -1,9 +1,10 @@
 name: Security Scan
 
-# Reporting-only security telemetry pipeline: Semgrep + Trivy (static) and a
-# Nuclei placeholder (dynamic). This workflow must never modify repository
-# files, and must never fail the build based on findings — see continue-on-error
-# below on every scan/upload step.
+# Reporting-only security telemetry pipeline: Semgrep + Trivy (static) and
+# Nuclei (dynamic, against a WebGoat instance built and booted from this
+# checkout). This workflow must never modify repository files, and must
+# never fail the build based on findings — see continue-on-error below on
+# every build/boot/scan/upload step.
 
 on:
   pull_request:
@@ -68,27 +69,40 @@ jobs:
           category: trivy
 
   dynamic-scan:
-    name: Dynamic Scan Placeholder (Nuclei)
+    name: Dynamic Scan (Nuclei against live WebGoat)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     permissions:
       contents: read
     steps:
       - name: Checkout repository
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      # Dynamic scanning needs a live WebGoat instance. Building/booting the
-      # full server on every push/PR is expensive and out of scope for a
-      # reporting-only pipeline, so the startup step stays commented out.
-      # Uncomment (and give the job enough time to wait for readiness) to
-      # exercise this locally or in a dedicated, manually-triggered workflow.
-      # - name: Start WebGoat server
-      #   run: |
-      #     docker run -d --name webgoat -p 8080:8080 -p 9090:9090 \
-      #       webgoat/webgoat
-      #     for i in $(seq 1 30); do
-      #       curl -sf http://localhost:8080/WebGoat/login && break
-      #       sleep 5
-      #     done
+      - name: Set up JDK
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          architecture: x64
+          cache: maven
+
+      - name: Build WebGoat jar
+        continue-on-error: true
+        run: ./mvnw --no-transfer-progress -DskipTests package
+
+      - name: Build WebGoat Docker image
+        continue-on-error: true
+        run: docker build -t webgoat-ci:${{ github.sha }} .
+
+      - name: Start WebGoat server
+        continue-on-error: true
+        run: |
+          docker run -d --name webgoat -p 8080:8080 -p 9090:9090 \
+            webgoat-ci:${{ github.sha }}
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:8080/WebGoat/actuator/health && break
+            sleep 5
+          done
 
       - name: Run Nuclei against local WebGoat instance
         continue-on-error: true
@@ -101,6 +115,16 @@ jobs:
             -target http://localhost:8080/WebGoat \
             -jsonl \
             -output /output/nuclei-results.json
+
+      - name: Dump WebGoat container logs on failure
+        if: failure()
+        continue-on-error: true
+        run: docker logs webgoat || true
+
+      - name: Stop WebGoat server
+        if: always()
+        continue-on-error: true
+        run: docker rm -f webgoat || true
 
       - name: Upload Nuclei results artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
