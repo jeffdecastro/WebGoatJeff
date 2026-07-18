@@ -27,6 +27,7 @@ jobs:
         continue-on-error: true
         run: |
           docker run --rm \
+            --platform linux/amd64 \
             -v "${{ github.workspace }}:/src" \
             -w /src \
             semgrep/semgrep@sha256:a05b03c49b2161f9a081aa597931a051ce09cb247ae087e35d19759a2070d55c \
@@ -92,6 +93,7 @@ jobs:
         run: |
           mkdir -p nuclei-results
           docker run --rm --network host \
+            --platform linux/amd64 \
             -v "${{ github.workspace }}/nuclei-results:/output" \
             projectdiscovery/nuclei@sha256:8b82dfd56c02cbc47a6d328c58ff3292bfdb633e964f0f119b6d41d3a5ee33ef \
             -target http://localhost:8080/WebGoat \
