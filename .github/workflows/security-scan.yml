@@ -30,7 +30,7 @@ jobs:
             --platform linux/amd64 \
             -v "${{ github.workspace }}:/src" \
             -w /src \
-            semgrep/semgrep@sha256:a05b03c49b2161f9a081aa597931a051ce09cb247ae087e35d19759a2070d55c \
+            semgrep/semgrep@sha256:2b33f46ba66cf8cc2ad59ccfa7d22951fd00c632c38f1339e84ec8e6e641a942 \
             semgrep scan \
               --config=p/java \
               --config=p/maven \
