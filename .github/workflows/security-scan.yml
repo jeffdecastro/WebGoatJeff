@@ -3,10 +3,12 @@ name: Security Scan
 # Reporting-only security telemetry pipeline: Semgrep + Trivy (static) and
 # Nuclei (dynamic, against a WebGoat instance built and booted from this
 # checkout), followed by a PR comment summarizing findings by CWE and
-# GitHub Issues filed for Critical-severity findings. This workflow must
-# never modify repository files, and must never fail the build based on
-# findings — see continue-on-error below on every build/boot/scan/report
-# step.
+# GitHub Issues filed for Critical-severity findings, plus (experimental,
+# alongside the above) a second PR comment from jeffdecastro/security-pipeline-shared
+# that asks Gemini to turn the same findings into a dev-readable,
+# risk-prioritized summary. This workflow must never modify repository
+# files, and must never fail the build based on findings — see
+# continue-on-error below on every build/boot/scan/report step.
 
 on:
   pull_request:
@@ -69,6 +71,22 @@ jobs:
         with:
           sarif_file: trivy.sarif
           category: trivy
+
+      - name: Upload Semgrep SARIF artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: semgrep-output
+          path: semgrep.sarif
+          if-no-files-found: warn
+
+      - name: Upload Trivy SARIF artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: trivy-output
+          path: trivy.sarif
+          if-no-files-found: warn
 
   dynamic-scan:
     name: Dynamic Scan (Nuclei against live WebGoat)
@@ -165,3 +183,19 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
         run: python3 .github/scripts/report_findings.py
+
+  gemini-report:
+    name: Gemini Report (dev-readable, risk-prioritized)
+    # Experimental second PR comment, posted alongside report-findings above,
+    # for evaluating a Gemini-generated summary before it replaces anything.
+    if: always() && github.event_name == 'pull_request'
+    needs: [static-analysis, dynamic-scan]
+    uses: jeffdecastro/security-pipeline-shared/.github/workflows/gemini-report.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+      artifact_manifest: "semgrep-sarif=semgrep-output,trivy-sarif=trivy-output,nuclei-jsonl=nuclei-results"
+    secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
