@@ -1,0 +1,201 @@
+name: Security Scan
+
+# Reporting-only security telemetry pipeline: Semgrep + Trivy (static) and
+# Nuclei (dynamic, against a WebGoat instance built and booted from this
+# checkout), followed by a PR comment summarizing findings by CWE and
+# GitHub Issues filed for Critical-severity findings, plus (experimental,
+# alongside the above) a second PR comment from jeffdecastro/security-pipeline-shared
+# that asks Gemini to turn the same findings into a dev-readable,
+# risk-prioritized summary. This workflow must never modify repository
+# files, and must never fail the build based on findings — see
+# continue-on-error below on every build/boot/scan/report step.
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  static-analysis:
+    name: Static Analysis (Semgrep + Trivy)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Run Semgrep (Java/Maven rulesets)
+        continue-on-error: true
+        run: |
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "${{ github.workspace }}:/src" \
+            -w /src \
+            semgrep/semgrep@sha256:2b33f46ba66cf8cc2ad59ccfa7d22951fd00c632c38f1339e84ec8e6e641a942 \
+            semgrep scan \
+              --config=p/java \
+              --config=p/security-audit \
+              --config=p/owasp-top-ten \
+              --config=p/cwe-top-25 \
+              --sarif \
+              --output=semgrep.sarif \
+              --no-git-ignore \
+              .
+
+      - name: Run Trivy filesystem scan (pom.xml + source)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        continue-on-error: true
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig,secret
+          format: sarif
+          output: trivy.sarif
+          severity: CRITICAL,HIGH,MEDIUM,LOW
+          exit-code: '0'
+
+      - name: Upload Semgrep SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@b7351df727350dca84cb9d725d57dcf5bc82ba26 # v3.37.1
+        continue-on-error: true
+        with:
+          sarif_file: semgrep.sarif
+          category: semgrep
+
+      - name: Upload Trivy SARIF to code scanning
+        uses: github/codeql-action/upload-sarif@b7351df727350dca84cb9d725d57dcf5bc82ba26 # v3.37.1
+        continue-on-error: true
+        with:
+          sarif_file: trivy.sarif
+          category: trivy
+
+      - name: Upload Semgrep SARIF artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: semgrep-output
+          path: semgrep.sarif
+          if-no-files-found: warn
+
+      - name: Upload Trivy SARIF artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: trivy-output
+          path: trivy.sarif
+          if-no-files-found: warn
+
+  dynamic-scan:
+    name: Dynamic Scan (Nuclei against live WebGoat)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up JDK
+        uses: actions/setup-java@03ad4de0992f5dab5e18fcb136590ce7c4a0ac95 # v5.6.0
+        with:
+          distribution: temurin
+          java-version: '25'
+          architecture: x64
+          cache: maven
+
+      - name: Build WebGoat jar
+        continue-on-error: true
+        run: ./mvnw --no-transfer-progress -DskipTests package
+
+      - name: Build WebGoat Docker image
+        continue-on-error: true
+        run: docker build -t webgoat-ci:${{ github.sha }} .
+
+      - name: Start WebGoat server
+        continue-on-error: true
+        run: |
+          docker run -d --name webgoat -p 8080:8080 -p 9090:9090 \
+            webgoat-ci:${{ github.sha }}
+          for i in $(seq 1 40); do
+            curl -sf http://localhost:8080/WebGoat/actuator/health && break
+            sleep 5
+          done
+
+      - name: Run Nuclei against local WebGoat instance
+        continue-on-error: true
+        run: |
+          mkdir -p nuclei-results
+          docker run --rm --network host \
+            --platform linux/amd64 \
+            -v "${{ github.workspace }}/nuclei-results:/output" \
+            projectdiscovery/nuclei@sha256:8b82dfd56c02cbc47a6d328c58ff3292bfdb633e964f0f119b6d41d3a5ee33ef \
+            -target http://localhost:8080/WebGoat \
+            -jsonl \
+            -output /output/nuclei-results.json
+
+      - name: Dump WebGoat container logs on failure
+        if: failure()
+        continue-on-error: true
+        run: docker logs webgoat || true
+
+      - name: Stop WebGoat server
+        if: always()
+        continue-on-error: true
+        run: docker rm -f webgoat || true
+
+      - name: Upload Nuclei results artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: nuclei-results
+          path: nuclei-results/nuclei-results.json
+          if-no-files-found: warn
+
+  report-findings:
+    name: Report Findings (PR comment + Critical issues)
+    # PR-only: the report is built around commenting on a specific PR, so it
+    # doesn't run for direct pushes to main/master. always() so a hard
+    # failure in either upstream job still gets a partial report instead of
+    # silently skipping it.
+    if: always() && github.event_name == 'pull_request'
+    needs: [static-analysis, dynamic-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: read
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Wait for code scanning analysis to be queryable
+        run: sleep 15
+
+      - name: Post PR comment and file issues for Critical findings
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: python3 .github/scripts/report_findings.py
+
+  gemini-report:
+    name: Gemini Report (dev-readable, risk-prioritized)
+    # Experimental second PR comment, posted alongside report-findings above,
+    # for evaluating a Gemini-generated summary before it replaces anything.
+    if: always() && github.event_name == 'pull_request'
+    needs: [static-analysis, dynamic-scan]
+    uses: jeffdecastro/security-pipeline-shared/.github/workflows/gemini-report.yml@main
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      pr_number: ${{ github.event.pull_request.number }}
+      artifact_manifest: "semgrep-sarif=semgrep-output,trivy-sarif=trivy-output,nuclei-jsonl=nuclei-results"
+    secrets:
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
